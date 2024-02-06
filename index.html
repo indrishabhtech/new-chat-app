@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>I-Talk by Rishabh</title>
+  <style>
+    /* CSS styles */
+    body {
+      margin: 0;
+      padding-bottom: 3rem;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background-image: linear-gradient(
+        rgb(255, 255, 255),
+        rgb(211, 142, 211)
+      );
+    }
+
+    .logo {
+      display: block;
+      margin: auto;
+      width: 50px;
+      height: 50px;
+    }
+
+    h2 {
+      margin-top: 12px;
+      font-size: 30px;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 300px;
+      border: 2px solid black;
+      padding: 20px;
+      margin: auto;
+      height: calc(100% - 4rem);
+      overflow-y: auto;
+      margin-bottom: 23px;
+      display: flex;
+      justify-content: space-between;
+      padding: 1rem;
+    }
+
+    .left-container,
+    .right-container {
+      flex-grow: 1;
+      border-radius: 10px;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+
+    #form {
+      background: rgba(0, 0, 0, 0.15);
+      padding: 0.25rem;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      height: 3rem;
+      box-sizing: border-box;
+      backdrop-filter: blur(10px);
+    }
+
+    #input {
+      border: none;
+      padding: 0 1rem;
+      flex-grow: 1;
+      border-radius: 2rem;
+      margin: 0.25rem;
+    }
+
+    #input:focus {
+      outline: none;
+    }
+
+    #form > button {
+      background: #333;
+      border: none;
+      padding: 0.25rem 0.5rem;
+      margin: 0.25rem auto;
+      border-radius: 3px;
+      outline: none;
+      color: #fff;
+      display: block;
+      width: fit-content;
+    }
+
+    .message {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 5px;
+      word-wrap: break-word;
+    }
+
+    .received {
+      background-color: grey;
+      text-align: left;
+    }
+    .leave {
+      text-align: center;
+      font-size: 20px;
+      color: red;
+    }
+
+    .sent {
+      background-color: lightgreen;
+      text-align: right;
+    }
+
+    .text_center {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <!-- <img class="logo" src="/chat2.jpg" alt="I-talk" /> -->
+    <h2>Welcome to I-Talk</h2>
+  </nav>
+
+  <audio id="leaveSound">
+    <source src="ting.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <audio id="messageReceivedSound">
+    <source src="timb.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <!-- HTML markup -->
+  <div class="container">
+    <!-- Add a Leave Chat button -->
+    <button class="leave">Leave Chat</button>
+
+    <div class="left-container" id="received-messages"></div>
+    <div class="right-container" id="sent-messages"></div>
+  </div>
+
+  <form id="join-form">
+    <input
+      id="name-input"
+      autocomplete="off"
+      placeholder="Enter your name"
+    /><button>Join</button>
+  </form>
+
+  <form id="form" action="" style="display: none">
+    <input id="input" autocomplete="off" /><button>Send</button>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // JavaScript code...
+    // JavaScript code
+    let counter = 0;
+    let userName;
+    let socket;
+
+    // JavaScript code...
+    let leaveSound = document.getElementById("leaveSound");
+    let messageReceivedSound = document.getElementById(
+      "messageReceivedSound"
+    );
+
+    function playLeaveSound() {
+      leaveSound.play();
+    }
+
+    function playMessageReceivedSound() {
+      messageReceivedSound.play();
+    }
+
+    const joinForm = document.getElementById("join-form");
+    const nameInput = document.getElementById("name-input");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const receivedMessages = document.getElementById("received-messages");
+    const sentMessages = document.getElementById("sent-messages");
+    const sentMessagesMap = new Map(); // Map to store sent messages
+
+    function connectSocket() {
+      socket = io({
+        auth: {
+          serverOffset: 0,
+        },
+        ackTimeout: 10000,
+        retries: 3,
+      });
+
+      socket.on("connect", () => {
+        console.log("Connected to server");
+        // Re-join the chat if userName is set
+        if (userName) {
+          socket.emit("user joined", userName);
+        }
+      });
+
+      socket.on("disconnect", () => {
+        console.log("Disconnected from server");
+      });
+
+      socket.on("chat message", (msg, serverOffset, sender) => {
+        if (sender !== userName) {
+          appendReceivedMessage(sender, msg);
+          playMessageReceivedSound(); // Play message received sound
+        } else {
+          appendSentMessage(msg);
+        }
+      });
+
+      socket.on("user joined", (user) => {
+        if (user !== userName) {
+          appendReceivedMessage("System", `${user} joined the chat`);
+        }
+      });
+
+      socket.on("user left", (user) => {
+        appendReceivedMessage(user, `${user} left the chat`);
+        playLeaveSound(); // Play leave sound
+      });
+      // socket.on('server offset', (offset) =>
+    }
+
+    joinForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (nameInput.value) {
+        userName = nameInput.value; // Set the username
+        joinForm.style.display = "none";
+        form.style.display = "flex";
+        connectSocket(); // Connect the socket after setting the username
+        // Emit user joined event when joining the chat
+        socket.emit("user joined", userName);
+      }
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (input.value) {
+        const clientOffset = `${socket.id}-${counter++}`;
+        appendSentMessage(input.value); // Append message to the green container
+        sentMessagesMap.set(clientOffset, input.value); // Store the sent message locally
+        // Emit message with acknowledgment callback
+        socket.emit(
+          "chat message",
+          input.value,
+          clientOffset,
+          userName,
+          () => {
+            console.log("Message sent successfully"); // Handle acknowledgment
+          }
+        );
+        input.value = "";
+      }
+    });
+
+    // Add event listener for the Leave Chat button
+    const leaveChatBtn = document.querySelector(".leave");
+    leaveChatBtn.addEventListener("click", () => {
+      if (socket) {
+        socket.emit("user left", userName); // Emit the username when leaving
+        socket.disconnect(); // Disconnect the socket
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (socket) {
+        socket.emit("user left", userName);
+        socket.disconnect();
+      }
+    });
+
+    function appendReceivedMessage(sender, msg) {
+      const messageElement = document.createElement("div");
+      messageElement.textContent = `${sender}: ${msg}`;
+      messageElement.classList.add("message", "received");
+      receivedMessages.appendChild(messageElement);
+      receivedMessages.scrollTop = receivedMessages.scrollHeight;
+    }
+
+    function appendSentMessage(msg) {
+      const messageElement = document.createElement("div");
+      messageElement.textContent = msg;
+      messageElement.classList.add("message", "sent");
+      sentMessages.appendChild(messageElement);
+      sentMessages.scrollTop = sentMessages.scrollHeight;
+    }
+  </script>
+</body>
+</html>
